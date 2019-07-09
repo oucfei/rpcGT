@@ -9,11 +9,11 @@
 class DFSServerNode {
 
 private:
-    /** The mount path for the server **/
-    std::string mount_path;
-
     /** The server address information **/
     std::string server_address;
+
+    /** The mount path for the server **/
+    std::string mount_path;
 
     /** The pointer to the grpc server instance **/
     std::unique_ptr<grpc::Server> server;

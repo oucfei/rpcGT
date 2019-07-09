@@ -27,14 +27,14 @@ protected:
     /** The mount path **/
     std::string mount_path;
 
+    /** Unmounting indicator - indicates when the client is unmounting **/
+    bool unmounting;
+
     /** CRC table kept in memory for faster calculations **/
     CRC::Table<std::uint32_t, 32> crc_table;
 
     /** The service stub **/
     std::unique_ptr<dfs_service::DFSService::Stub> service_stub;
-
-    /** Unmounting indicator - indicates when the client is unmounting **/
-    bool unmounting;
 
     /**
      * Utility function to wrap a filename with the mount path.
