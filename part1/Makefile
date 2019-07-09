@@ -1,6 +1,8 @@
-CXX = g++
+CXX = g++ -Wall -g3 -fPIC
 CPPFLAGS += `pkg-config --cflags protobuf grpc`
 CXXFLAGS += -std=c++11
+ASAN_FLAGS = -fsanitize=address -fno-omit-frame-pointer
+ASAN_LIBS = -static-libasan
 LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ grpc`\
            -Wl,--no-as-needed -lgrpc++_reflection -Wl,--as-needed\
            -ldl
@@ -47,10 +49,10 @@ $(OBJ_DIR)/%.pb-p1.o: $(PROTOS_SRC)/%.pb.cc
 	$(CXX) $^ -c $(CPPFLAGS) -o $@
 
 $(BIN_DIR)/dfs-client-p1: $(OBJ_PROTO_FILES) $(OBJ_SRC_FILES) $(OBJ_LIB_FILES) $(SRC_DIR)/dfs-client-p1.cpp
-	$(CXX) $^ $(CPPFLAGS) -DDFS_MAIN $(LDFLAGS) -o $@
+	$(CXX) $^ $(CPPFLAGS) $(ASAN_FLAGS) -DDFS_MAIN $(LDFLAGS) $(ASAN_LIBS) -o $@
 
 $(BIN_DIR)/dfs-server-p1: $(OBJ_PROTO_FILES) $(OBJ_SRC_FILES) $(OBJ_LIB_FILES) $(SRC_DIR)/dfs-server-p1.cpp
-	$(CXX) $^ $(CPPFLAGS) -DDFS_MAIN $(LDFLAGS) -o $@
+	$(CXX) $^ $(CPPFLAGS) $(ASAN_FLAGS) -DDFS_MAIN $(LDFLAGS) $(ASAN_LIBS) -o $@
 
 .PRECIOUS: %.grpc.pb.cc
 $(PROTOS_SRC)/%.grpc.pb.cc: %.proto
