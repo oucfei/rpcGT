@@ -23,10 +23,7 @@ using grpc::ServerReader;
 using grpc::ServerWriter;
 using grpc::ServerContext;
 using grpc::ServerBuilder;
-
 using dfs_service::DFSService;
-
-#define BUFSIZE 1024
 
 //
 // STUDENT INSTRUCTION:
@@ -74,7 +71,6 @@ private:
     const std::string WrapPath(const std::string &filepath) {
         return this->mount_path + filepath;
     }
-
 
 public:
 

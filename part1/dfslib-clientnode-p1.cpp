@@ -114,7 +114,7 @@ StatusCode DFSClientNodeP1::Fetch(const std::string &filename) {
     Chunk chunk;
     request.set_filename(filename);
 
-    std::unique_ptr<ClientReader<Chunk> > reader(service_stub->Fetch(&context, request));
+    std::unique_ptr<ClientReader<Chunk>> reader(service_stub->Fetch(&context, request));
         
     /* std::string user("xiaofma!!");
     HelloRequest request2;
