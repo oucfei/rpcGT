@@ -26,6 +26,9 @@ using grpc::StatusCode;
 using grpc::ClientWriter;
 using grpc::ClientReader;
 using grpc::ClientContext;
+using dfs_service::HelloRequest;
+using dfs_service::HelloReply;
+using dfs_service::DFSService;
 
 //
 // STUDENT INSTRUCTION:
@@ -38,14 +41,50 @@ using grpc::ClientContext;
 //
 //      using dfs_service::MyMethod
 //
+class GrpcClient {
+ public:
+  GrpcClient(std::shared_ptr<Channel> channel)
+      : stub_(dfs_service::DFSService::NewStub(channel)) {}
 
+  // Assembles the client's payload, sends it and presents the response back
+  // from the server.
+  std::string SayHello(const std::string& user) {
+    // Data we are sending to the server.
+    HelloRequest request;
+    request.set_name(user);
 
-DFSClientNodeP1::DFSClientNodeP1() : DFSClientNode() {}
+    // Container for the data we expect from the server.
+    HelloReply reply;
+
+    // Context for the client. It could be used to convey extra information to
+    // the server and/or tweak certain RPC behaviors.
+    ClientContext context;
+
+    // The actual RPC.
+    Status status = stub_->SayHello(&context, request, &reply);
+
+    // Act upon its status.
+    if (status.ok()) {
+      return reply.message();
+    } else {
+      std::cout << status.error_code() << ": " << status.error_message()
+                << std::endl;
+      return "RPC failed";
+    }
+  }
+
+ private:
+  std::unique_ptr<dfs_service::DFSService::Stub> stub_;
+};
+
+DFSClientNodeP1::DFSClientNodeP1() : DFSClientNode() {
+
+}
 
 DFSClientNodeP1::~DFSClientNodeP1() noexcept {}
 
 StatusCode DFSClientNodeP1::Store(const std::string &filename) {
-
+    return StatusCode::OK;
     //
     // STUDENT INSTRUCTION:
     //
@@ -67,7 +106,7 @@ StatusCode DFSClientNodeP1::Store(const std::string &filename) {
 
 
 StatusCode DFSClientNodeP1::Fetch(const std::string &filename) {
-
+    return StatusCode::OK;
     //
     // STUDENT INSTRUCTION:
     //
@@ -90,7 +129,13 @@ StatusCode DFSClientNodeP1::Fetch(const std::string &filename) {
 }
 
 StatusCode DFSClientNodeP1::List(std::map<std::string,int>* file_map, bool display) {
+  GrpcClient greeter(grpc::CreateChannel(
+      "localhost:42001", grpc::InsecureChannelCredentials()));
+  std::string user("world");
+  std::string reply = greeter.SayHello(user);
+  std::cout << "Greeter received: " << reply << std::endl;
 
+    return StatusCode::OK;
     //
     // STUDENT INSTRUCTION:
     //
@@ -113,7 +158,7 @@ StatusCode DFSClientNodeP1::List(std::map<std::string,int>* file_map, bool displ
 }
 
 StatusCode DFSClientNodeP1::Stat(const std::string &filename, void* file_status) {
-
+    return StatusCode::OK;
     //
     // STUDENT INSTRUCTION:
     //

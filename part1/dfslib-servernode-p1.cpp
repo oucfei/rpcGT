@@ -82,6 +82,15 @@ public:
 
     ~DFSServiceImpl() {}
 
+  Status SayHello(ServerContext* context, const HelloRequest* request,
+                  HelloReply* reply) override {
+                  dfs_log(LL_SYSINFO) << "DFSServerNode saying hello!";
+        
+    std::string prefix("Hello ");
+    reply->set_message(prefix + request->name());
+    return Status::OK;
+  }
+  
     //
     // STUDENT INSTRUCTION:
     //

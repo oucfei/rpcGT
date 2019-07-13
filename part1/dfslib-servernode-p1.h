@@ -5,6 +5,14 @@
 #include <iostream>
 #include <thread>
 #include <grpcpp/grpcpp.h>
+#include "proto-src/dfs-service.grpc.pb.h"
+
+using grpc::Server;
+using grpc::ServerBuilder;
+using grpc::ServerContext;
+using grpc::Status;
+using dfs_service::HelloRequest;
+using dfs_service::HelloReply;
 
 class DFSServerNode {
 
@@ -26,6 +34,9 @@ public:
     ~DFSServerNode();
     void Shutdown();
     void Start();
+
+Status SayHello(ServerContext* context, const HelloRequest* request,
+                  HelloReply* reply);
 
     //
     // STUDENT INSTRUCTION:
