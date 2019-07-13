@@ -106,7 +106,7 @@ int main(int argc, char** argv) {
     std::string command = "";
     std::string filename = "";
     std::string mount_path = "mnt/client";
-    std::string server_address = "0.0.0.0:42001";
+    std::string server_address = "localhost:42001";
 
     char cwd[PATH_MAX];
     if (getcwd(cwd, sizeof(cwd)) == NULL) {
@@ -155,20 +155,20 @@ int main(int argc, char** argv) {
     if (mount_path.empty()) {
         mount_path = working_directory + "/mnt/client";
     }
-
+  
     struct stat st;
     // check for directory existence
     if (!(stat(mount_path.c_str(), &st) == 0)) {
         std::cerr << "Mount path not found at: " << mount_path << std::endl;
         return 1;
     }
-
+  
     // Get command and filename
     for(int i = optind; i < argc; i++) {
         if (command.empty()) { command = argv[i]; }
         else if (filename.empty()) { filename = argv[i]; }
     }
-
+ 
     if (command.empty()) {
         std::cerr << "\nMissing command!\n";
         Usage();
@@ -177,6 +177,7 @@ int main(int argc, char** argv) {
 
     std::string commands("fetch store list stat");
     if (commands.find(command) == std::string::npos ) {
+        std::cout << "unknow command!\n";
         std::cerr << "\nUnknown command!\n";
         Usage();
         return -1;
@@ -192,11 +193,15 @@ int main(int argc, char** argv) {
     signal(SIGINT, HandleSignal);
     signal(SIGTERM, HandleSignal);
 
+    std::cout << "running command: " << command << ", mount path: " << mount_path << ", fileName: " << filename << "\n";
     client.SetMountPath(mount_path);
+     
     client.SetDeadlineTimeout(deadline_timeout);
+     
     client.InitializeClientNode(server_address);
-    client.ProcessCommand(command, filename);
 
+    client.ProcessCommand(command, filename);
+  
     return 0;
 }
 

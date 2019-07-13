@@ -26,6 +26,7 @@ using grpc::ServerBuilder;
 
 using dfs_service::DFSService;
 
+#define BUFSIZE 1024
 
 //
 // STUDENT INSTRUCTION:
@@ -84,13 +85,33 @@ public:
 
   Status SayHello(ServerContext* context, const HelloRequest* request,
                   HelloReply* reply) override {
-                  dfs_log(LL_SYSINFO) << "DFSServerNode saying hello!";
+    dfs_log(LL_SYSINFO) << "DFSServerNode saying hello!";
         
     std::string prefix("Hello ");
     reply->set_message(prefix + request->name());
     return Status::OK;
   }
-  
+
+  Status Fetch(ServerContext* context, const FetchRequest* request,
+                  ServerWriter<Chunk>* writer) override {
+
+    dfs_log(LL_SYSINFO) << "DFSServerNode received fetch request!";
+        
+    std::string fileToFetch(WrapPath(request->filename()));
+    dfs_log(LL_SYSINFO) << "FiletoFetch "<< fileToFetch;
+
+    std::ifstream input(fileToFetch, std::ios::binary);
+    std::string contents((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    
+    dfs_log(LL_SYSINFO) << "File size: "<< contents.size();
+
+    Chunk chunk;
+    chunk.set_content(contents);
+    writer->Write(chunk);
+
+    return Status::OK;
+  }
+
     //
     // STUDENT INSTRUCTION:
     //

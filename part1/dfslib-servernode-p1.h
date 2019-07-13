@@ -10,9 +10,14 @@
 using grpc::Server;
 using grpc::ServerBuilder;
 using grpc::ServerContext;
+using grpc::ServerReader;
+using grpc::ServerReaderWriter;
+using grpc::ServerWriter;
 using grpc::Status;
 using dfs_service::HelloRequest;
 using dfs_service::HelloReply;
+using dfs_service::FetchRequest;
+using dfs_service::Chunk;
 
 class DFSServerNode {
 
@@ -38,6 +43,8 @@ public:
 Status SayHello(ServerContext* context, const HelloRequest* request,
                   HelloReply* reply);
 
+Status Fetch(ServerContext* context, const FetchRequest* request,
+                  ServerWriter<Chunk>* writer);
     //
     // STUDENT INSTRUCTION:
     //

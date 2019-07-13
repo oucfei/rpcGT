@@ -20,6 +20,21 @@ service DFSService {
 
   // Sends a greeting
   rpc SayHello (HelloRequest) returns (HelloReply) {}
+
+  rpc Fetch (FetchRequest) returns (stream Chunk) {}
+
+  rpc Store (stream Chunk) returns (Empty) {}
+}
+
+message Empty {
+}
+
+message Chunk {
+  bytes content = 1;
+}
+
+message FetchRequest {
+  string filename = 1;
 }
 
 // Add your message types here

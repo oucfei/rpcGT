@@ -29,6 +29,9 @@ using grpc::ClientContext;
 using dfs_service::HelloRequest;
 using dfs_service::HelloReply;
 using dfs_service::DFSService;
+using dfs_service::FetchRequest;
+using dfs_service::Chunk;
+using std::ofstream;
 
 //
 // STUDENT INSTRUCTION:
@@ -104,9 +107,37 @@ StatusCode DFSClientNodeP1::Store(const std::string &filename) {
     //
 }
 
-
 StatusCode DFSClientNodeP1::Fetch(const std::string &filename) {
+    std::cout << "begin fetch " << filename;
+    ClientContext context;
+    FetchRequest request;
+    Chunk chunk;
+    request.set_filename(filename);
+
+    std::unique_ptr<ClientReader<Chunk> > reader(service_stub->Fetch(&context, request));
+        
+    /* std::string user("xiaofma!!");
+    HelloRequest request2;
+    request2.set_name(user);
+   HelloReply reply;
+    Status status2 = service_stub->SayHello(&context, request2, &reply);
+
+    std::cout << "RPC call to fetch returned: " << reply.message();*/
+
+    reader->Read(&chunk);
+    size_t size = chunk.content().size();
+    std::cout << "Received chunk size: " << size;
+
+    std::string filePath = WrapPath(filename);
+    ofstream outfile(filePath, ofstream::binary);
+  
+    std::cout << "Fetch finished, writing to file " << filePath << "\n";
+    outfile.write(chunk.content().c_str(), size);
+ 
+    outfile.close();
+
     return StatusCode::OK;
+
     //
     // STUDENT INSTRUCTION:
     //
@@ -129,9 +160,10 @@ StatusCode DFSClientNodeP1::Fetch(const std::string &filename) {
 }
 
 StatusCode DFSClientNodeP1::List(std::map<std::string,int>* file_map, bool display) {
+
   GrpcClient greeter(grpc::CreateChannel(
       "localhost:42001", grpc::InsecureChannelCredentials()));
-  std::string user("world");
+  std::string user("world!!");
   std::string reply = greeter.SayHello(user);
   std::cout << "Greeter received: " << reply << std::endl;
 
