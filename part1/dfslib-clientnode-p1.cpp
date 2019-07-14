@@ -44,7 +44,7 @@ using std::ofstream;
 //
 //      using dfs_service::MyMethod
 //
-class GrpcClient {
+/*class GrpcClient {
  public:
   GrpcClient(std::shared_ptr<Channel> channel)
       : stub_(dfs_service::DFSService::NewStub(channel)) {}
@@ -78,7 +78,7 @@ class GrpcClient {
 
  private:
   std::unique_ptr<dfs_service::DFSService::Stub> stub_;
-};
+};*/
 
 DFSClientNodeP1::DFSClientNodeP1() : DFSClientNode() {
 
@@ -115,14 +115,6 @@ StatusCode DFSClientNodeP1::Fetch(const std::string &filename) {
     request.set_filename(filename);
 
     std::unique_ptr<ClientReader<Chunk>> reader(service_stub->Fetch(&context, request));
-        
-    /* std::string user("xiaofma!!");
-    HelloRequest request2;
-    request2.set_name(user);
-   HelloReply reply;
-    Status status2 = service_stub->SayHello(&context, request2, &reply);
-
-    std::cout << "RPC call to fetch returned: " << reply.message();*/
 
     reader->Read(&chunk);
     size_t size = chunk.content().size();
@@ -161,11 +153,11 @@ StatusCode DFSClientNodeP1::Fetch(const std::string &filename) {
 
 StatusCode DFSClientNodeP1::List(std::map<std::string,int>* file_map, bool display) {
 
-  GrpcClient greeter(grpc::CreateChannel(
+  /* GrpcClient greeter(grpc::CreateChannel(
       "localhost:42001", grpc::InsecureChannelCredentials()));
   std::string user("world!!");
   std::string reply = greeter.SayHello(user);
-  std::cout << "Greeter received: " << reply << std::endl;
+  std::cout << "Greeter received: " << reply << std::endl;*/
 
     return StatusCode::OK;
     //
