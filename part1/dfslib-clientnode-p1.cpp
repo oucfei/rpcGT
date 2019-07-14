@@ -33,6 +33,11 @@ using dfs_service::FetchRequest;
 using dfs_service::Chunk;
 using std::ofstream;
 using dfs_service::StoreResponse;
+using dfs_service::GetStatRequest;
+using dfs_service::GetStatResponse;
+using dfs_service::ListFilesRequest;
+using dfs_service::ListFilesResponse;
+using dfs_service::ListFileInfo;
 
 //
 // STUDENT INSTRUCTION:
@@ -175,14 +180,24 @@ StatusCode DFSClientNodeP1::Fetch(const std::string &filename) {
 }
 
 StatusCode DFSClientNodeP1::List(std::map<std::string,int>* file_map, bool display) {
+    dfs_log(LL_SYSINFO) << "listing file: ";
+    ListFilesRequest request;
+    ClientContext context;
+    ListFilesResponse response;
 
-  /* GrpcClient greeter(grpc::CreateChannel(
-      "localhost:42001", grpc::InsecureChannelCredentials()));
-  std::string user("world!!");
-  std::string reply = greeter.SayHello(user);
-  std::cout << "Greeter received: " << reply << std::endl;*/
+    Status status = service_stub->ListAllFiles(&context, request, &response);
+    
+    for (int i = 0; i < response.allfileinfo_size(); i++)
+    {
+        std::string filename = response.allfileinfo(i).filename();
+        int mtime = response.allfileinfo(i).modifiedtime();
+        file_map->insert(std::make_pair(filename, mtime));
+
+        dfs_log(LL_SYSINFO) << "listing file: " << filename << ", mtime: " << mtime;
+    }
 
     return StatusCode::OK;
+
     //
     // STUDENT INSTRUCTION:
     //
@@ -205,6 +220,15 @@ StatusCode DFSClientNodeP1::List(std::map<std::string,int>* file_map, bool displ
 }
 
 StatusCode DFSClientNodeP1::Stat(const std::string &filename, void* file_status) {
+    GetStatRequest request;
+    request.set_filename(filename);
+    GetStatResponse response;
+    ClientContext context;
+    Status status = service_stub->GetStat(&context, request, &response);
+    std::cout << "Get stat finished,  file size" << response.filesize() << "\n";
+    std::cout << "file creat time: " << response.creationtime() << "\n";
+    std::cout << "file modify time: " << response.modifiedtime() << "\n";
+
     return StatusCode::OK;
     //
     // STUDENT INSTRUCTION:

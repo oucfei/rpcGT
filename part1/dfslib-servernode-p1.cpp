@@ -10,6 +10,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <grpcpp/grpcpp.h>
+#include <sys/types.h>
 
 #include "src/dfs-utils.h"
 #include "dfslib-shared-p1.h"
@@ -89,6 +90,43 @@ public:
     reply->set_message(prefix + request->name());
     return Status::OK;
   }
+
+
+  Status GetStat(ServerContext* context, const GetStatRequest* request,
+    GetStatResponse* response) override{
+    dfs_log(LL_SYSINFO) << "DFSServerNode received get stat request!";
+
+    std::string fileToGetStat(WrapPath(request->filename()));
+
+    struct stat fileStat;
+    stat(fileToGetStat.c_str(), &fileStat);
+ 
+    response->set_filesize(fileStat.st_size);
+    response->set_creationtime(fileStat.st_ctime);
+    response->set_modifiedtime(fileStat.st_mtime);
+
+    return Status::OK;
+  }
+
+Status ListAllFiles(ServerContext* context, const ListFilesRequest* request,
+                  ListFilesResponse* reply) override
+{
+    DIR* dirp = opendir(mount_path.c_str());
+    struct dirent * dp;
+    while ((dp = readdir(dirp)) != NULL) {
+        std::string file(WrapPath(dp->d_name));
+        struct stat fileStat;
+        stat(file.c_str(), &fileStat);
+
+        ListFileInfo* fileInfo = reply->add_allfileinfo();
+        
+        fileInfo->set_filename(dp->d_name);
+        fileInfo->set_modifiedtime(fileStat.st_mtime);
+        dfs_log(LL_SYSINFO) << "Added file: " << dp->d_name;
+    }
+
+    return Status::OK;
+}
 
   Status Fetch(ServerContext* context, const FetchRequest* request,
                   ServerWriter<Chunk>* writer) override {

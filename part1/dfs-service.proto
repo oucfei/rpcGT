@@ -24,6 +24,36 @@ service DFSService {
   rpc Fetch (FetchRequest) returns (stream Chunk) {}
 
   rpc Store (stream Chunk) returns (StoreResponse) {}
+
+  rpc GetStat(GetStatRequest) returns(GetStatResponse){}
+
+  rpc ListAllFiles(ListFilesRequest) returns(ListFilesResponse){}
+}
+
+message ListFilesRequest{
+}
+
+message ListFilesResponse
+{
+  repeated ListFileInfo allfileinfo = 1;
+}
+
+message ListFileInfo
+{
+  string filename = 1;
+  int64 modifiedtime = 2;
+}
+
+message GetStatResponse
+{
+  int64 filesize = 1;
+  int64 modifiedtime = 2;
+  int64 creationtime = 3;
+}
+
+message GetStatRequest
+{
+  string filename = 1;
 }
 
 message StoreResponse {
@@ -37,8 +67,6 @@ message Chunk {
 message FetchRequest {
   string filename = 1;
 }
-
-// Add your message types here
 
 // The request message containing the user's name.
 message HelloRequest {
