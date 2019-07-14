@@ -23,10 +23,11 @@ service DFSService {
 
   rpc Fetch (FetchRequest) returns (stream Chunk) {}
 
-  rpc Store (stream Chunk) returns (Empty) {}
+  rpc Store (stream Chunk) returns (StoreResponse) {}
 }
 
-message Empty {
+message StoreResponse {
+  string result = 1;
 }
 
 message Chunk {

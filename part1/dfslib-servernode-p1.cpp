@@ -25,6 +25,8 @@ using grpc::ServerContext;
 using grpc::ServerBuilder;
 using dfs_service::DFSService;
 
+using std::ofstream;
+
 //
 // STUDENT INSTRUCTION:
 //
@@ -104,6 +106,34 @@ public:
     Chunk chunk;
     chunk.set_content(contents);
     writer->Write(chunk);
+
+    return Status::OK;
+  }
+
+  Status Store(ServerContext* context, ServerReader<Chunk>* reader, 
+        StoreResponse* response) override {
+    
+    dfs_log(LL_SYSINFO) << "DFSServerNode received Store request!";
+    std::multimap<grpc::string_ref, grpc::string_ref> metadata = context->client_metadata();
+
+    auto iter = metadata.begin();
+    char dest[256];
+    strncpy(dest, iter->second.data(), iter->second.length());
+    std::string filename(dest);
+    dfs_log(LL_SYSINFO) << "DFSServerNode received Store request filename: " << filename;
+
+    Chunk chunk;
+    reader->Read(&chunk);
+
+    size_t size = chunk.content().size();
+    
+    std::string filePath = WrapPath(filename);
+    ofstream outfile(filePath, ofstream::binary);
+  
+    std::cout << "writing to file " << filePath << "\n";
+    outfile.write(chunk.content().c_str(), size);
+ 
+    outfile.close();
 
     return Status::OK;
   }

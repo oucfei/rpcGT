@@ -18,6 +18,7 @@ using dfs_service::HelloRequest;
 using dfs_service::HelloReply;
 using dfs_service::FetchRequest;
 using dfs_service::Chunk;
+using dfs_service::StoreResponse;
 
 class DFSServerNode {
 
@@ -45,6 +46,10 @@ Status SayHello(ServerContext* context, const HelloRequest* request,
 
 Status Fetch(ServerContext* context, const FetchRequest* request,
                   ServerWriter<Chunk>* writer);
+
+Status Store(ServerContext* context, ServerReader<Chunk>* reader, 
+    StoreResponse* response);
+
     //
     // STUDENT INSTRUCTION:
     //

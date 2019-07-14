@@ -32,6 +32,7 @@ using dfs_service::DFSService;
 using dfs_service::FetchRequest;
 using dfs_service::Chunk;
 using std::ofstream;
+using dfs_service::StoreResponse;
 
 //
 // STUDENT INSTRUCTION:
@@ -87,7 +88,29 @@ DFSClientNodeP1::DFSClientNodeP1() : DFSClientNode() {
 DFSClientNodeP1::~DFSClientNodeP1() noexcept {}
 
 StatusCode DFSClientNodeP1::Store(const std::string &filename) {
+    std::cout << "begin store " << filename;
+    ClientContext context;
+    context.AddMetadata("filename", filename);
+
+    StoreResponse response;
+    std::unique_ptr<ClientWriter<Chunk>> writer(service_stub->Store(&context, &response));
+
+    std::string fileToStore(WrapPath(filename));
+    std::cout  << "FiletoStore "<< fileToStore;
+
+    std::ifstream input(fileToStore, std::ios::binary);
+    std::string contents((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    
+    std::cout << "File size: "<< contents.size();
+    
+    Chunk chunk;
+    chunk.set_content(contents);
+    writer->Write(chunk);
+    writer->WritesDone();
+    Status status = writer->Finish();
+
     return StatusCode::OK;
+    
     //
     // STUDENT INSTRUCTION:
     //
