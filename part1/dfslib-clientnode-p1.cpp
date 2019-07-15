@@ -93,7 +93,7 @@ DFSClientNodeP1::DFSClientNodeP1() : DFSClientNode() {
 DFSClientNodeP1::~DFSClientNodeP1() noexcept {}
 
 StatusCode DFSClientNodeP1::Store(const std::string &filename) {
-    std::cout << "begin store " << filename;
+    dfs_log(LL_SYSINFO) << "begin store " << filename;
     ClientContext context;
     context.AddMetadata("filename", filename);
 
@@ -101,16 +101,39 @@ StatusCode DFSClientNodeP1::Store(const std::string &filename) {
     std::unique_ptr<ClientWriter<Chunk>> writer(service_stub->Store(&context, &response));
 
     std::string fileToStore(WrapPath(filename));
-    std::cout  << "FiletoStore "<< fileToStore;
+    dfs_log(LL_SYSINFO) << "FiletoStore "<< fileToStore;
 
     std::ifstream input(fileToStore, std::ios::binary);
-    std::string contents((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
-    
-    std::cout << "File size: "<< contents.size();
-    
-    Chunk chunk;
-    chunk.set_content(contents);
-    writer->Write(chunk);
+    struct stat filestatus;
+    stat(fileToStore.c_str(), &filestatus);
+
+    size_t total_size = filestatus.st_size;
+    size_t chunk_size = 1024;
+    size_t total_chunks = total_size / chunk_size;
+    size_t last_chunk_size = total_size % chunk_size;
+    if (last_chunk_size != 0) 
+    {
+      ++total_chunks;
+    }
+    else
+    {
+      last_chunk_size = chunk_size;
+    }
+
+    dfs_log(LL_SYSINFO) << "stream uploading file: total chunk: " << total_chunks;
+    for (size_t chunk = 0; chunk < total_chunks; ++chunk)
+    {
+      size_t this_chunk_size = chunk == total_chunks - 1? last_chunk_size : chunk_size;
+      std::vector<char> chunk_data(this_chunk_size);
+
+      input.read(&chunk_data[0], this_chunk_size); /* this many bytes is to be read */
+
+      Chunk chunkToSend;
+      std::string contentStr(chunk_data.begin(), chunk_data.end());
+      chunkToSend.set_content(contentStr);
+      writer->Write(chunkToSend);
+    }
+
     writer->WritesDone();
     Status status = writer->Finish();
 
@@ -136,28 +159,33 @@ StatusCode DFSClientNodeP1::Store(const std::string &filename) {
 }
 
 StatusCode DFSClientNodeP1::Fetch(const std::string &filename) {
-    std::cout << "begin fetch " << filename;
+    dfs_log(LL_SYSINFO) << "begin fetch " << filename;
     ClientContext context;
     FetchRequest request;
-    Chunk chunk;
     request.set_filename(filename);
 
     std::unique_ptr<ClientReader<Chunk>> reader(service_stub->Fetch(&context, request));
 
-    reader->Read(&chunk);
-    size_t size = chunk.content().size();
-    std::cout << "Received chunk size: " << size;
-
     std::string filePath = WrapPath(filename);
     ofstream outfile(filePath, ofstream::binary);
-  
-    std::cout << "Fetch finished, writing to file " << filePath << "\n";
-    outfile.write(chunk.content().c_str(), size);
- 
+
+    Chunk chunk;
+    while (reader->Read(&chunk))
+    {
+      outfile << chunk.content();
+      chunk.clear_content();
+    }
+
     outfile.close();
+    Status status = reader->Finish();
+    if (status.ok())
+    {
+      return StatusCode::OK;
+    }
 
-    return StatusCode::OK;
-
+    dfs_log(LL_SYSINFO) << "failed to fetch in server: " << status.error_message();
+    return status.error_code();
+    
     //
     // STUDENT INSTRUCTION:
     //
@@ -225,9 +253,9 @@ StatusCode DFSClientNodeP1::Stat(const std::string &filename, void* file_status)
     GetStatResponse response;
     ClientContext context;
     Status status = service_stub->GetStat(&context, request, &response);
-    std::cout << "Get stat finished,  file size" << response.filesize() << "\n";
-    std::cout << "file creat time: " << response.creationtime() << "\n";
-    std::cout << "file modify time: " << response.modifiedtime() << "\n";
+    dfs_log(LL_SYSINFO) << "Get stat finished,  file size" << response.filesize() << "\n";
+    dfs_log(LL_SYSINFO) << "file creat time: " << response.creationtime() << "\n";
+    dfs_log(LL_SYSINFO) << "file modify time: " << response.modifiedtime() << "\n";
 
     return StatusCode::OK;
     //

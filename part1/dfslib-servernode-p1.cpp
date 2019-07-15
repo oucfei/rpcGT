@@ -135,44 +135,74 @@ Status ListAllFiles(ServerContext* context, const ListFilesRequest* request,
         
     std::string fileToFetch(WrapPath(request->filename()));
     dfs_log(LL_SYSINFO) << "FiletoFetch "<< fileToFetch;
-
     std::ifstream input(fileToFetch, std::ios::binary);
-    std::string contents((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
-    
-    dfs_log(LL_SYSINFO) << "File size: "<< contents.size();
+    if (input.fail())
+    {
+      dfs_log(LL_SYSINFO) << "failed to open file: not exist";
+      return Status(StatusCode::NOT_FOUND, "File not exist.");
+    }
 
-    Chunk chunk;
-    chunk.set_content(contents);
-    writer->Write(chunk);
+    struct stat filestatus;
+    stat(fileToFetch.c_str(), &filestatus);
+
+    size_t total_size = filestatus.st_size;
+    size_t chunk_size = 1024;
+    size_t total_chunks = total_size / chunk_size;
+    size_t last_chunk_size = total_size % chunk_size;
+    if (last_chunk_size != 0) 
+    {
+      ++total_chunks;
+    }
+    else
+    {
+      last_chunk_size = chunk_size;
+    }
+
+    dfs_log(LL_SYSINFO) << "streaming file: total chunk: " << total_chunks;
+    for (size_t chunk = 0; chunk < total_chunks; ++chunk)
+    {
+      size_t this_chunk_size = chunk == total_chunks - 1? last_chunk_size : chunk_size;
+      std::vector<char> chunk_data(this_chunk_size);
+
+      input.read(&chunk_data[0], this_chunk_size); /* this many bytes is to be read */
+
+      Chunk chunkToSend;
+      std::string contentStr(chunk_data.begin(), chunk_data.end());
+      chunkToSend.set_content(contentStr);
+      writer->Write(chunkToSend);
+    }
 
     return Status::OK;
   }
 
   Status Store(ServerContext* context, ServerReader<Chunk>* reader, 
         StoreResponse* response) override {
-    
-    dfs_log(LL_SYSINFO) << "DFSServerNode received Store request!";
+
     std::multimap<grpc::string_ref, grpc::string_ref> metadata = context->client_metadata();
 
     auto iter = metadata.begin();
-    char dest[256];
+    char dest[iter->second.length() + 1];
+    
+    dfs_log(LL_SYSINFO) << "DFSServerNode received Store request filename!" << iter->second.data();
+    dfs_log(LL_SYSINFO) << "DFSServerNode received Store request filename length!" << iter->second.length();
+
     strncpy(dest, iter->second.data(), iter->second.length());
+    dest[iter->second.length()] = '\0';
+    
     std::string filename(dest);
     dfs_log(LL_SYSINFO) << "DFSServerNode received Store request filename: " << filename;
 
-    Chunk chunk;
-    reader->Read(&chunk);
-
-    size_t size = chunk.content().size();
-    
     std::string filePath = WrapPath(filename);
     ofstream outfile(filePath, ofstream::binary);
-  
-    std::cout << "writing to file " << filePath << "\n";
-    outfile.write(chunk.content().c_str(), size);
- 
-    outfile.close();
 
+    Chunk chunk;
+    while (reader->Read(&chunk))
+    {
+      outfile << chunk.content();
+      chunk.clear_content();
+    }
+
+    outfile.close();
     return Status::OK;
   }
 
