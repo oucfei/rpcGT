@@ -95,7 +95,7 @@ DFSClientNodeP1::~DFSClientNodeP1() noexcept {}
 StatusCode DFSClientNodeP1::Store(const std::string &filename) {
     dfs_log(LL_SYSINFO) << "begin store " << filename;
     ClientContext context;
-    context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout));
+    context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout + 5000));
     context.AddMetadata("filename", filename);
 
     StoreResponse response;
@@ -168,7 +168,7 @@ StatusCode DFSClientNodeP1::Store(const std::string &filename) {
 StatusCode DFSClientNodeP1::Fetch(const std::string &filename) {
     dfs_log(LL_SYSINFO) << "begin fetch " << filename;
     ClientContext context;
-    context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout));
+    context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout + 10000));
     FetchRequest request;
     request.set_filename(filename);
 
@@ -219,7 +219,7 @@ StatusCode DFSClientNodeP1::List(std::map<std::string,int>* file_map, bool displ
     dfs_log(LL_SYSINFO) << "listing file: ";
     ListFilesRequest request;
     ClientContext context;
-    context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout));
+    context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout + 5000));
     ListFilesResponse response;
 
     Status status = service_stub->ListAllFiles(&context, request, &response);
@@ -267,7 +267,7 @@ StatusCode DFSClientNodeP1::Stat(const std::string &filename, void* file_status)
     request.set_filename(filename);
     GetStatResponse response;
     ClientContext context;
-    context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout));
+    context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout+5000));
     Status status = service_stub->GetStat(&context, request, &response);
     dfs_log(LL_SYSINFO) << "Get stat finished,  file size" << response.filesize() << "\n";
     dfs_log(LL_SYSINFO) << "file creat time: " << response.creationtime() << "\n";
