@@ -95,6 +95,7 @@ DFSClientNodeP1::~DFSClientNodeP1() noexcept {}
 StatusCode DFSClientNodeP1::Store(const std::string &filename) {
     dfs_log(LL_SYSINFO) << "begin store " << filename;
     ClientContext context;
+    context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout));
     context.AddMetadata("filename", filename);
 
     StoreResponse response;
@@ -137,7 +138,13 @@ StatusCode DFSClientNodeP1::Store(const std::string &filename) {
     writer->WritesDone();
     Status status = writer->Finish();
 
-    return StatusCode::OK;
+    if (status.ok())
+    {
+      return StatusCode::OK;
+    }
+
+    dfs_log(LL_SYSINFO) << "failed to store in server: " << status.error_message();
+    return status.error_code();
     
     //
     // STUDENT INSTRUCTION:
@@ -161,6 +168,7 @@ StatusCode DFSClientNodeP1::Store(const std::string &filename) {
 StatusCode DFSClientNodeP1::Fetch(const std::string &filename) {
     dfs_log(LL_SYSINFO) << "begin fetch " << filename;
     ClientContext context;
+    context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout));
     FetchRequest request;
     request.set_filename(filename);
 
@@ -211,6 +219,7 @@ StatusCode DFSClientNodeP1::List(std::map<std::string,int>* file_map, bool displ
     dfs_log(LL_SYSINFO) << "listing file: ";
     ListFilesRequest request;
     ClientContext context;
+    context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout));
     ListFilesResponse response;
 
     Status status = service_stub->ListAllFiles(&context, request, &response);
@@ -224,7 +233,13 @@ StatusCode DFSClientNodeP1::List(std::map<std::string,int>* file_map, bool displ
         dfs_log(LL_SYSINFO) << "listing file: " << filename << ", mtime: " << mtime;
     }
 
-    return StatusCode::OK;
+    if (status.ok())
+    {
+      return StatusCode::OK;
+    }
+
+    dfs_log(LL_SYSINFO) << "failed to list: " << status.error_message();
+    return status.error_code();
 
     //
     // STUDENT INSTRUCTION:
@@ -252,12 +267,20 @@ StatusCode DFSClientNodeP1::Stat(const std::string &filename, void* file_status)
     request.set_filename(filename);
     GetStatResponse response;
     ClientContext context;
+    context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout));
     Status status = service_stub->GetStat(&context, request, &response);
     dfs_log(LL_SYSINFO) << "Get stat finished,  file size" << response.filesize() << "\n";
     dfs_log(LL_SYSINFO) << "file creat time: " << response.creationtime() << "\n";
     dfs_log(LL_SYSINFO) << "file modify time: " << response.modifiedtime() << "\n";
 
-    return StatusCode::OK;
+    if (status.ok())
+    {
+      return StatusCode::OK;
+    }
+
+    dfs_log(LL_SYSINFO) << "failed to get stat: " << status.error_message();
+    return status.error_code();
+
     //
     // STUDENT INSTRUCTION:
     //

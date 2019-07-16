@@ -91,12 +91,21 @@ public:
     return Status::OK;
   }
 
-
   Status GetStat(ServerContext* context, const GetStatRequest* request,
     GetStatResponse* response) override{
     dfs_log(LL_SYSINFO) << "DFSServerNode received get stat request!";
+    if (context->IsCancelled()) {
+      dfs_log(LL_SYSINFO) << "Deadline exceeded";
+      return Status(StatusCode::DEADLINE_EXCEEDED, "Deadline exceeded or Client cancelled, abandoning.");
+    }
 
     std::string fileToGetStat(WrapPath(request->filename()));
+    std::ifstream input(fileToGetStat, std::ios::binary);
+    if (input.fail())
+    {
+      dfs_log(LL_SYSINFO) << "failed to open file: not exist";
+      return Status(StatusCode::NOT_FOUND, "File not exist.");
+    }
 
     struct stat fileStat;
     stat(fileToGetStat.c_str(), &fileStat);
@@ -111,6 +120,11 @@ public:
 Status ListAllFiles(ServerContext* context, const ListFilesRequest* request,
                   ListFilesResponse* reply) override
 {
+    if (context->IsCancelled()) {
+      dfs_log(LL_SYSINFO) << "Deadline exceeded";
+      return Status(StatusCode::DEADLINE_EXCEEDED, "Deadline exceeded or Client cancelled, abandoning.");
+    }
+
     DIR* dirp = opendir(mount_path.c_str());
     struct dirent * dp;
     while ((dp = readdir(dirp)) != NULL) {
@@ -161,6 +175,11 @@ Status ListAllFiles(ServerContext* context, const ListFilesRequest* request,
     dfs_log(LL_SYSINFO) << "streaming file: total chunk: " << total_chunks;
     for (size_t chunk = 0; chunk < total_chunks; ++chunk)
     {
+      if (context->IsCancelled()) {
+        dfs_log(LL_SYSINFO) << "Deadline exceeded";
+        return Status(StatusCode::DEADLINE_EXCEEDED, "Deadline exceeded or Client cancelled, abandoning.");
+      }
+
       size_t this_chunk_size = chunk == total_chunks - 1? last_chunk_size : chunk_size;
       std::vector<char> chunk_data(this_chunk_size);
 
@@ -188,16 +207,26 @@ Status ListAllFiles(ServerContext* context, const ListFilesRequest* request,
 
     strncpy(dest, iter->second.data(), iter->second.length());
     dest[iter->second.length()] = '\0';
-    
+
     std::string filename(dest);
     dfs_log(LL_SYSINFO) << "DFSServerNode received Store request filename: " << filename;
 
     std::string filePath = WrapPath(filename);
     ofstream outfile(filePath, ofstream::binary);
+    if (context->IsCancelled()) {
+      dfs_log(LL_SYSINFO) << "Deadline exceeded";
+      return Status(StatusCode::DEADLINE_EXCEEDED, "Deadline exceeded or Client cancelled, abandoning.");
+    }
 
     Chunk chunk;
     while (reader->Read(&chunk))
     {
+      if (context->IsCancelled()) {
+        dfs_log(LL_SYSINFO) << "Deadline exceeded";
+        outfile.close();
+        return Status(StatusCode::DEADLINE_EXCEEDED, "Deadline exceeded or Client cancelled, abandoning.");
+      }
+
       outfile << chunk.content();
       chunk.clear_content();
     }
