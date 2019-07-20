@@ -50,41 +50,6 @@ using dfs_service::ListFileInfo;
 //
 //      using dfs_service::MyMethod
 //
-/*class GrpcClient {
- public:
-  GrpcClient(std::shared_ptr<Channel> channel)
-      : stub_(dfs_service::DFSService::NewStub(channel)) {}
-
-  // Assembles the client's payload, sends it and presents the response back
-  // from the server.
-  std::string SayHello(const std::string& user) {
-    // Data we are sending to the server.
-    HelloRequest request;
-    request.set_name(user);
-
-    // Container for the data we expect from the server.
-    HelloReply reply;
-
-    // Context for the client. It could be used to convey extra information to
-    // the server and/or tweak certain RPC behaviors.
-    ClientContext context;
-
-    // The actual RPC.
-    Status status = stub_->SayHello(&context, request, &reply);
-
-    // Act upon its status.
-    if (status.ok()) {
-      return reply.message();
-    } else {
-      std::cout << status.error_code() << ": " << status.error_message()
-                << std::endl;
-      return "RPC failed";
-    }
-  }
-
- private:
-  std::unique_ptr<dfs_service::DFSService::Stub> stub_;
-};*/
 
 DFSClientNodeP1::DFSClientNodeP1() : DFSClientNode() {
 
@@ -95,7 +60,7 @@ DFSClientNodeP1::~DFSClientNodeP1() noexcept {}
 StatusCode DFSClientNodeP1::Store(const std::string &filename) {
     dfs_log(LL_SYSINFO) << "begin store " << filename;
     ClientContext context;
-    context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout + 5000));
+    //context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout + 5000));
     context.AddMetadata("filename", filename);
 
     StoreResponse response;
@@ -168,7 +133,7 @@ StatusCode DFSClientNodeP1::Store(const std::string &filename) {
 StatusCode DFSClientNodeP1::Fetch(const std::string &filename) {
     dfs_log(LL_SYSINFO) << "begin fetch " << filename;
     ClientContext context;
-    context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout + 10000));
+    //context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout));
     FetchRequest request;
     request.set_filename(filename);
 
@@ -219,7 +184,7 @@ StatusCode DFSClientNodeP1::List(std::map<std::string,int>* file_map, bool displ
     dfs_log(LL_SYSINFO) << "listing file: ";
     ListFilesRequest request;
     ClientContext context;
-    context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout + 5000));
+    //context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout + 5000));
     ListFilesResponse response;
 
     Status status = service_stub->ListAllFiles(&context, request, &response);
@@ -267,7 +232,7 @@ StatusCode DFSClientNodeP1::Stat(const std::string &filename, void* file_status)
     request.set_filename(filename);
     GetStatResponse response;
     ClientContext context;
-    context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout+5000));
+    //context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout+5000));
     Status status = service_stub->GetStat(&context, request, &response);
     dfs_log(LL_SYSINFO) << "Get stat finished,  file size" << response.filesize() << "\n";
     dfs_log(LL_SYSINFO) << "file creat time: " << response.creationtime() << "\n";

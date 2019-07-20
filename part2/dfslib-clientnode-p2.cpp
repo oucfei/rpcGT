@@ -30,7 +30,16 @@ using grpc::StatusCode;
 using grpc::ClientWriter;
 using grpc::ClientReader;
 using grpc::ClientContext;
-
+using dfs_service::DFSService;
+using dfs_service::FetchRequest;
+using dfs_service::Chunk;
+using std::ofstream;
+using dfs_service::StoreResponse;
+using dfs_service::GetStatRequest;
+using dfs_service::GetStatResponse;
+using dfs_service::ListFilesRequest;
+using dfs_service::ListFilesResponse;
+using dfs_service::ListFileInfo;
 
 extern dfs_log_level_e DFS_LOG_LEVEL;
 
@@ -38,7 +47,7 @@ DFSClientNodeP2::DFSClientNodeP2() : DFSClientNode() {}
 DFSClientNodeP2::~DFSClientNodeP2() {}
 
 grpc::StatusCode DFSClientNodeP2::RequestWriteAccess(const std::string &filename) {
-
+    return StatusCode::OK;
     //
     // STUDENT INSTRUCTION:
     //
@@ -60,6 +69,58 @@ grpc::StatusCode DFSClientNodeP2::RequestWriteAccess(const std::string &filename
 }
 
 grpc::StatusCode DFSClientNodeP2::Store(const std::string &filename) {
+    dfs_log(LL_SYSINFO) << "begin store " << filename;
+    ClientContext context;
+    //context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout + 5000));
+    context.AddMetadata("filename", filename);
+
+    StoreResponse response;
+    std::unique_ptr<ClientWriter<Chunk>> writer(service_stub->Store(&context, &response));
+
+    std::string fileToStore(WrapPath(filename));
+    dfs_log(LL_SYSINFO) << "FiletoStore "<< fileToStore;
+
+    std::ifstream input(fileToStore, std::ios::binary);
+    struct stat filestatus;
+    stat(fileToStore.c_str(), &filestatus);
+
+    size_t total_size = filestatus.st_size;
+    size_t chunk_size = 1024;
+    size_t total_chunks = total_size / chunk_size;
+    size_t last_chunk_size = total_size % chunk_size;
+    if (last_chunk_size != 0) 
+    {
+      ++total_chunks;
+    }
+    else
+    {
+      last_chunk_size = chunk_size;
+    }
+
+    dfs_log(LL_SYSINFO) << "stream uploading file: total chunk: " << total_chunks;
+    for (size_t chunk = 0; chunk < total_chunks; ++chunk)
+    {
+      size_t this_chunk_size = chunk == total_chunks - 1? last_chunk_size : chunk_size;
+      std::vector<char> chunk_data(this_chunk_size);
+
+      input.read(&chunk_data[0], this_chunk_size); /* this many bytes is to be read */
+
+      Chunk chunkToSend;
+      std::string contentStr(chunk_data.begin(), chunk_data.end());
+      chunkToSend.set_content(contentStr);
+      writer->Write(chunkToSend);
+    }
+
+    writer->WritesDone();
+    Status status = writer->Finish();
+
+    if (status.ok())
+    {
+      return StatusCode::OK;
+    }
+
+    dfs_log(LL_SYSINFO) << "failed to store in server: " << status.error_message();
+    return status.error_code();
 
     //
     // STUDENT INSTRUCTION:
@@ -90,7 +151,33 @@ grpc::StatusCode DFSClientNodeP2::Store(const std::string &filename) {
 
 
 grpc::StatusCode DFSClientNodeP2::Fetch(const std::string &filename) {
+    dfs_log(LL_SYSINFO) << "begin fetch " << filename;
+    ClientContext context;
+   //context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout));
+    FetchRequest request;
+    request.set_filename(filename);
 
+    std::unique_ptr<ClientReader<Chunk>> reader(service_stub->Fetch(&context, request));
+
+    std::string filePath = WrapPath(filename);
+    ofstream outfile(filePath, ofstream::binary);
+
+    Chunk chunk;
+    while (reader->Read(&chunk))
+    {
+      outfile << chunk.content();
+      chunk.clear_content();
+    }
+
+    outfile.close();
+    Status status = reader->Finish();
+    if (status.ok())
+    {
+      return StatusCode::OK;
+    }
+
+    dfs_log(LL_SYSINFO) << "failed to fetch in server: " << status.error_message();
+    return status.error_code();
     //
     // STUDENT INSTRUCTION:
     //
@@ -115,7 +202,30 @@ grpc::StatusCode DFSClientNodeP2::Fetch(const std::string &filename) {
 }
 
 grpc::StatusCode DFSClientNodeP2::List(std::map<std::string,int>* file_map, bool display) {
+    dfs_log(LL_SYSINFO) << "listing file: ";
+    ListFilesRequest request;
+    ClientContext context;
+    //context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout + 5000));
+    ListFilesResponse response;
 
+    Status status = service_stub->ListAllFiles(&context, request, &response);
+    
+    for (int i = 0; i < response.allfileinfo_size(); i++)
+    {
+        std::string filename = response.allfileinfo(i).filename();
+        int mtime = response.allfileinfo(i).modifiedtime();
+        file_map->insert(std::make_pair(filename, mtime));
+
+        dfs_log(LL_SYSINFO) << "listing file: " << filename << ", mtime: " << mtime;
+    }
+
+    if (status.ok())
+    {
+      return StatusCode::OK;
+    }
+
+    dfs_log(LL_SYSINFO) << "failed to list: " << status.error_message();
+    return status.error_code();
     //
     // STUDENT INSTRUCTION:
     //
@@ -135,7 +245,23 @@ grpc::StatusCode DFSClientNodeP2::List(std::map<std::string,int>* file_map, bool
 }
 
 grpc::StatusCode DFSClientNodeP2::Stat(const std::string &filename, void* file_status) {
+    GetStatRequest request;
+    request.set_filename(filename);
+    GetStatResponse response;
+    ClientContext context;
+    //context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout+5000));
+    Status status = service_stub->GetStat(&context, request, &response);
+    dfs_log(LL_SYSINFO) << "Get stat finished,  file size" << response.filesize() << "\n";
+    dfs_log(LL_SYSINFO) << "file creat time: " << response.creationtime() << "\n";
+    dfs_log(LL_SYSINFO) << "file modify time: " << response.modifiedtime() << "\n";
 
+    if (status.ok())
+    {
+      return StatusCode::OK;
+    }
+
+    dfs_log(LL_SYSINFO) << "failed to get stat: " << status.error_message();
+    return status.error_code();
     //
     // STUDENT INSTRUCTION:
     //

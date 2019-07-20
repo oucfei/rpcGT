@@ -5,6 +5,25 @@
 #include <iostream>
 #include <thread>
 #include <grpcpp/grpcpp.h>
+#include "proto-src/dfs-service.grpc.pb.h"
+
+using grpc::Server;
+using grpc::ServerBuilder;
+using grpc::ServerContext;
+using grpc::ServerReader;
+using grpc::ServerReaderWriter;
+using grpc::ServerWriter;
+using grpc::Status;
+using dfs_service::FetchRequest;
+using dfs_service::Chunk;
+using dfs_service::StoreResponse;
+using dfs_service::GetStatRequest;
+using dfs_service::GetStatResponse;
+using dfs_service::ListFilesRequest;
+using dfs_service::ListFilesResponse;
+using dfs_service::ListFileInfo;
+using dfs_service::WriteLockResponse;
+using dfs_service::WriteLockRequest;
 
 class DFSServerNode {
 
@@ -28,6 +47,20 @@ public:
     void Shutdown();
     void Start();
 
+Status Fetch(ServerContext* context, const FetchRequest* request,
+                  ServerWriter<Chunk>* writer);
+
+Status Store(ServerContext* context, ServerReader<Chunk>* reader, 
+    StoreResponse* response);
+
+Status GetStat(ServerContext* context, const GetStatRequest* request,
+    GetStatResponse* response);
+
+Status ListAllFiles(ServerContext* context, const ListFilesRequest* request,
+                  ListFilesResponse* reply);
+
+Status RequestWriteLock(ServerContext* context, const WriteLockRequest* request,
+                  WriteLockResponse* reply);               
 };
 
 #endif
