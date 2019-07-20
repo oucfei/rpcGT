@@ -59,6 +59,7 @@ message GetStatResponse
   int64 filesize = 1;
   int64 modifiedtime = 2;
   int64 creationtime = 3;
+  uint32 checksum = 4;
 }
 
 message GetStatRequest

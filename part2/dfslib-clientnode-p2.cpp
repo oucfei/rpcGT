@@ -17,6 +17,7 @@
 #include <sys/inotify.h>
 #include <grpcpp/grpcpp.h>
 #include <utime.h>
+#include <dirent.h>
 
 #include "src/dfs-utils.h"
 #include "src/dfs-clientnode-p2.h"
@@ -52,6 +53,7 @@ DFSClientNodeP2::DFSClientNodeP2() : DFSClientNode() {
 DFSClientNodeP2::~DFSClientNodeP2() {}
 
 grpc::StatusCode DFSClientNodeP2::RequestWriteAccess(const std::string &filename) {
+    dfs_log(LL_SYSINFO) << "client requesting write access to file " << filename;
     WriteLockRequest request;
     request.set_filename(filename);
     request.set_clientid(client_id);
@@ -88,14 +90,17 @@ grpc::StatusCode DFSClientNodeP2::RequestWriteAccess(const std::string &filename
 }
 
 grpc::StatusCode DFSClientNodeP2::Store(const std::string &filename) {
+    dfs_log(LL_SYSINFO) << "begin store " << filename;
 
     grpc::StatusCode requestWriteLock = RequestWriteAccess(filename);
     if (requestWriteLock != StatusCode::OK)
     {
+        dfs_log(LL_SYSINFO) << "unable to store, no lock " << requestWriteLock;
         return requestWriteLock;
     }
 
-    dfs_log(LL_SYSINFO) << "begin store " << filename;
+    dfs_log(LL_SYSINFO) << "acquired lock, begin to store " << filename;
+
     ClientContext context;
     //context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout + 5000));
     context.AddMetadata("filename", filename);
@@ -308,7 +313,90 @@ grpc::StatusCode DFSClientNodeP2::Stat(const std::string &filename, void* file_s
     //
 }
 
+uint32_t DFSClientNodeP2::GetFileChecksum(const std::string &filename)
+{
+    GetStatRequest request;
+    request.set_filename(filename);
+    GetStatResponse response;
+    ClientContext context;
+    Status status = service_stub->GetStat(&context, request, &response);
+    return response.checksum();
+}
+
 void DFSClientNodeP2::Sync() {
+    dfs_log(LL_SYSINFO) << "client syncing. id: " << client_id << " mount path: " << mount_path;
+    std::map<std::string,int> server_files;
+    List(&server_files, false);
+
+    dfs_log(LL_SYSINFO) << "syncing ---------------------------------------------------------- ";
+    DIR* dirp = opendir(mount_path.c_str());
+    struct dirent * dp;
+    while ((dp = readdir(dirp)) != NULL) {
+        std::string temp(dp->d_name);
+        if (temp.compare(".") == 0 || temp.compare("..") == 0 || dp->d_name[0] == '.')
+        {
+            continue;
+        }
+
+        std::string file(WrapPath(dp->d_name));
+        struct stat fileStat;
+        stat(file.c_str(), &fileStat);
+
+        if (server_files.find(dp->d_name) != server_files.end())
+        {
+            dfs_log(LL_SYSINFO) << "comparing files " <<  dp->d_name << " client mtime: " << fileStat.st_mtime;
+
+            int server_mtime = server_files[dp->d_name];
+            if (server_mtime > fileStat.st_mtime)
+            {
+                uint32_t server_crc = GetFileChecksum(dp->d_name);
+                uint32_t client_crc = dfs_file_checksum(file, &this->crc_table);
+                if (server_crc != client_crc)
+                {
+                    dfs_log(LL_SYSINFO) << "server is newer, fetching " << dp->d_name;
+                    //server has newer version, fetch new file from server
+                    Fetch(dp->d_name);
+                }
+                else
+                {
+                    dfs_log(LL_SYSINFO) << "checksum same for file " << dp->d_name;
+                }
+                
+            }
+            else if (server_mtime < fileStat.st_mtime)
+            {
+                uint32_t server_crc = GetFileChecksum(dp->d_name);
+                uint32_t client_crc = dfs_file_checksum(file, &this->crc_table);
+                if (server_crc != client_crc)
+                {
+                    dfs_log(LL_SYSINFO) << "client is newer, storing " << dp->d_name;
+
+                    //client has newer version, store to server.
+                    Store(dp->d_name);
+                }
+                else
+                {
+                    dfs_log(LL_SYSINFO) << "checksum same for file " << dp->d_name;
+                }
+            }
+
+            server_files.erase(dp->d_name);
+        }
+        else
+        {
+            dfs_log(LL_SYSINFO) << "file " << dp->d_name << " not exist in server, storing";
+            Store(dp->d_name);
+        }
+    }
+
+    dfs_log(LL_SYSINFO) << "------------------processing client missing files.-----------------";
+    std::map<std::string,int>::iterator it;
+    for (it = server_files.begin(); it != server_files.end(); it++ )
+    {
+        dfs_log(LL_SYSINFO) << "client missing file, fetching " << it->first;
+
+        Fetch(it->first);
+    }
 
     //
     // STUDENT INSTRUCTION:

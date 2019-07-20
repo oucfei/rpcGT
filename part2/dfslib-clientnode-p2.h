@@ -96,6 +96,8 @@ public:
      */
     grpc::StatusCode Stat(const std::string& filename, void* file_status = NULL) override;
 
+    uint32_t GetFileChecksum(const std::string &filename);
+
     /**
      * This method gets called by the sychronization timer thread.
      *

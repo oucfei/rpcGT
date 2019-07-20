@@ -85,27 +85,29 @@ public:
 
 Status RequestWriteLock(ServerContext* context, const WriteLockRequest* request,
                   WriteLockResponse* reply) override {
-std::string filename = request->filename();
-std::string clientid = request->clientid();
+    dfs_log(LL_SYSINFO) << "processing lock request";
 
-if (lockMap.find(filename) != lockMap.end()){
-    dfs_log(LL_SYSINFO) << "cannot acquire lock. taken by client " << lockMap[filename];
-    return Status(StatusCode::RESOURCE_EXHAUSTED, "cannot acquire lock.");
-}
+    std::string filename = request->filename();
+    std::string clientid = request->clientid();
 
-mtx.lock();
-if (lockMap.find(filename) != lockMap.end()){
-    dfs_log(LL_SYSINFO) << "double checking: cannot acquire lock. taken by client " << lockMap[filename];
+    if (lockMap.find(filename) != lockMap.end()){
+        dfs_log(LL_SYSINFO) << "cannot acquire lock. taken by client " << lockMap[filename];
+        return Status(StatusCode::RESOURCE_EXHAUSTED, "cannot acquire lock.");
+    }
+
+    mtx.lock();
+    if (lockMap.find(filename) != lockMap.end()){
+        dfs_log(LL_SYSINFO) << "double checking: cannot acquire lock. taken by client " << lockMap[filename];
+        mtx.unlock();
+        return Status(StatusCode::RESOURCE_EXHAUSTED, "double checking: cannot acquire lock.");
+    }
+
+    lockMap[filename] = clientid;
+    dfs_log(LL_SYSINFO) << "client " << clientid << " got lock on file " << filename;
     mtx.unlock();
-    return Status(StatusCode::RESOURCE_EXHAUSTED, "double checking: cannot acquire lock.");
-}
-
-lockMap[filename] = clientid;
-dfs_log(LL_SYSINFO) << "client " << clientid << " got lock on file " << filename;
-mtx.unlock();
 
     return Status::OK;
-                  }
+}
     //
     // STUDENT INSTRUCTION:
     //
@@ -134,7 +136,7 @@ Status GetStat(ServerContext* context, const GetStatRequest* request,
     response->set_filesize(fileStat.st_size);
     response->set_creationtime(fileStat.st_ctime);
     response->set_modifiedtime(fileStat.st_mtime);
-
+    response->set_checksum(dfs_file_checksum(fileToGetStat, &this->crc_table));
     return Status::OK;
   }
 
@@ -150,6 +152,11 @@ Status ListAllFiles(ServerContext* context, const ListFilesRequest* request,
     DIR* dirp = opendir(mount_path.c_str());
     struct dirent * dp;
     while ((dp = readdir(dirp)) != NULL) {
+        std::string temp(dp->d_name);
+        if (temp.compare(".") == 0 || temp.compare("..") == 0 || dp->d_name[0] == '.')
+        {
+            continue;
+        }
         std::string file(WrapPath(dp->d_name));
         struct stat fileStat;
         stat(file.c_str(), &fileStat);
@@ -218,7 +225,8 @@ Status ListAllFiles(ServerContext* context, const ListFilesRequest* request,
 
   Status Store(ServerContext* context, ServerReader<Chunk>* reader, 
         StoreResponse* response) override {
-            
+    dfs_log(LL_SYSINFO) << "processing store request.";
+           
     std::multimap<grpc::string_ref, grpc::string_ref> metadata = context->client_metadata();
 
     auto iter = metadata.begin();
@@ -238,9 +246,11 @@ Status ListAllFiles(ServerContext* context, const ListFilesRequest* request,
 
     if (lockMap.find(filename) != lockMap.end() && lockMap[filename] != clientid)
     {
+        dfs_log(LL_SYSINFO) << "cannot store: doesn't hold lock.";
         return Status(StatusCode::RESOURCE_EXHAUSTED, "cannot store: doesn't hold lock.");
     }
 
+    dfs_log(LL_SYSINFO) << "holding lock. begin to store.";
     std::string filePath = WrapPath(filename);
     ofstream outfile(filePath, ofstream::binary);
     if (context->IsCancelled()) {
