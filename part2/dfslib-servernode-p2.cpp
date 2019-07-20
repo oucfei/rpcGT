@@ -73,7 +73,8 @@ private:
 
     // CRC Table kept in memory for faster calculations
     CRC::Table<std::uint32_t, 32> crc_table;
-
+    std::map<std::string, std::string> lockMap;
+    std::mutex mtx;
 public:
 
     DFSServiceImpl(const std::string& mount_path): mount_path(mount_path), crc_table(CRC::CRC_32()) {
@@ -82,6 +83,29 @@ public:
 
     ~DFSServiceImpl() {}
 
+Status RequestWriteLock(ServerContext* context, const WriteLockRequest* request,
+                  WriteLockResponse* reply) override {
+std::string filename = request->filename();
+std::string clientid = request->clientid();
+
+if (lockMap.find(filename) != lockMap.end()){
+    dfs_log(LL_SYSINFO) << "cannot acquire lock. taken by client " << lockMap[filename];
+    return Status(StatusCode::RESOURCE_EXHAUSTED, "cannot acquire lock.");
+}
+
+mtx.lock();
+if (lockMap.find(filename) != lockMap.end()){
+    dfs_log(LL_SYSINFO) << "double checking: cannot acquire lock. taken by client " << lockMap[filename];
+    mtx.unlock();
+    return Status(StatusCode::RESOURCE_EXHAUSTED, "double checking: cannot acquire lock.");
+}
+
+lockMap[filename] = clientid;
+dfs_log(LL_SYSINFO) << "client " << clientid << " got lock on file " << filename;
+mtx.unlock();
+
+    return Status::OK;
+                  }
     //
     // STUDENT INSTRUCTION:
     //
@@ -117,6 +141,7 @@ Status GetStat(ServerContext* context, const GetStatRequest* request,
 Status ListAllFiles(ServerContext* context, const ListFilesRequest* request,
                   ListFilesResponse* reply) override
 {
+    dfs_log(LL_SYSINFO) << "processing list request.";
     if (context->IsCancelled()) {
       dfs_log(LL_SYSINFO) << "Deadline exceeded";
       return Status(StatusCode::DEADLINE_EXCEEDED, "Deadline exceeded or Client cancelled, abandoning.");
@@ -193,20 +218,28 @@ Status ListAllFiles(ServerContext* context, const ListFilesRequest* request,
 
   Status Store(ServerContext* context, ServerReader<Chunk>* reader, 
         StoreResponse* response) override {
-
+            
     std::multimap<grpc::string_ref, grpc::string_ref> metadata = context->client_metadata();
 
     auto iter = metadata.begin();
-    char dest[iter->second.length() + 1];
-    
-    dfs_log(LL_SYSINFO) << "DFSServerNode received Store request filename!" << iter->second.data();
-    dfs_log(LL_SYSINFO) << "DFSServerNode received Store request filename length!" << iter->second.length();
+    char dest[iter->second.length() + 1];   
 
     strncpy(dest, iter->second.data(), iter->second.length());
     dest[iter->second.length()] = '\0';
 
-    std::string filename(dest);
-    dfs_log(LL_SYSINFO) << "DFSServerNode received Store request filename: " << filename;
+    iter++;
+    char dest2[iter->second.length() + 1];
+    strncpy(dest2, iter->second.data(), iter->second.length());
+    dest2[iter->second.length()] = '\0';
+    std::string clientid(dest);
+    std::string filename(dest2);
+
+    dfs_log(LL_SYSINFO) << "DFSServerNode received Store request filename: " << filename << ", id: " << clientid;
+
+    if (lockMap.find(filename) != lockMap.end() && lockMap[filename] != clientid)
+    {
+        return Status(StatusCode::RESOURCE_EXHAUSTED, "cannot store: doesn't hold lock.");
+    }
 
     std::string filePath = WrapPath(filename);
     ofstream outfile(filePath, ofstream::binary);
@@ -229,6 +262,12 @@ Status ListAllFiles(ServerContext* context, const ListFilesRequest* request,
     }
 
     outfile.close();
+
+    mtx.lock();
+    lockMap.erase(filename);
+    dfs_log(LL_SYSINFO) << "client " << clientid << " released lock on file " << filename;
+    mtx.unlock();
+
     return Status::OK;
   }
 

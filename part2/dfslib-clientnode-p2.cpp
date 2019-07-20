@@ -40,14 +40,34 @@ using dfs_service::GetStatResponse;
 using dfs_service::ListFilesRequest;
 using dfs_service::ListFilesResponse;
 using dfs_service::ListFileInfo;
+using dfs_service::WriteLockResponse;
+using dfs_service::WriteLockRequest;
 
 extern dfs_log_level_e DFS_LOG_LEVEL;
 
-DFSClientNodeP2::DFSClientNodeP2() : DFSClientNode() {}
+DFSClientNodeP2::DFSClientNodeP2() : DFSClientNode() {
+    dfs_log(LL_SYSINFO) << "Client started, id: " << client_id;
+}
+
 DFSClientNodeP2::~DFSClientNodeP2() {}
 
 grpc::StatusCode DFSClientNodeP2::RequestWriteAccess(const std::string &filename) {
-    return StatusCode::OK;
+    WriteLockRequest request;
+    request.set_filename(filename);
+    request.set_clientid(client_id);
+
+    WriteLockResponse response;
+    ClientContext context;
+    //context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout+5000));
+    Status status = service_stub->RequestWriteLock(&context, request, &response);
+    
+    if (status.ok())
+    {
+      return StatusCode::OK;
+    }
+
+    dfs_log(LL_SYSINFO) << "failed to RequestWriteAccess: " << status.error_message();
+    return status.error_code();
     //
     // STUDENT INSTRUCTION:
     //
@@ -65,14 +85,21 @@ grpc::StatusCode DFSClientNodeP2::RequestWriteAccess(const std::string &filename
     // StatusCode::CANCELLED otherwise
     //
     //
-
 }
 
 grpc::StatusCode DFSClientNodeP2::Store(const std::string &filename) {
+
+    grpc::StatusCode requestWriteLock = RequestWriteAccess(filename);
+    if (requestWriteLock != StatusCode::OK)
+    {
+        return requestWriteLock;
+    }
+
     dfs_log(LL_SYSINFO) << "begin store " << filename;
     ClientContext context;
     //context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout + 5000));
     context.AddMetadata("filename", filename);
+    context.AddMetadata("clientid", client_id);
 
     StoreResponse response;
     std::unique_ptr<ClientWriter<Chunk>> writer(service_stub->Store(&context, &response));

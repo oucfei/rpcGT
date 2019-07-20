@@ -282,7 +282,7 @@ int main(int argc, char** argv) {
     std::string command = "";
     std::string filename = "";
     std::string mount_path = "";
-    std::string server_address = "0.0.0.0:42001";
+    std::string server_address = "localhost:42001";
 
     char cwd[PATH_MAX];
     if (getcwd(cwd, sizeof(cwd)) == NULL) {

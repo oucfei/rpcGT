@@ -32,13 +32,12 @@ service DFSService {
 
 message WriteLockResponse
 {
-    bool lockAcquired = 1;
 }
 
 message WriteLockRequest
 {
     string filename = 1;
-    int32 clientid = 2;
+    string clientid = 2;
 }
 
 message ListFilesRequest{
