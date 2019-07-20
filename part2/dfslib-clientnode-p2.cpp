@@ -92,6 +92,19 @@ grpc::StatusCode DFSClientNodeP2::RequestWriteAccess(const std::string &filename
 grpc::StatusCode DFSClientNodeP2::Store(const std::string &filename) {
     dfs_log(LL_SYSINFO) << "begin store " << filename;
 
+    std::string fileToCheck(WrapPath(filename));
+    std::ifstream input_file(fileToCheck, std::ios::binary);
+    if (!input_file.fail())
+    {                
+        uint32_t server_crc = GetFileChecksum(filename);
+        uint32_t client_crc = dfs_file_checksum(fileToCheck, &this->crc_table);
+        if (server_crc == client_crc)
+        {
+            dfs_log(LL_SYSINFO) << "client cache is same with server, won't store " << filename;
+            return StatusCode::ALREADY_EXISTS;
+        }
+    }
+
     grpc::StatusCode requestWriteLock = RequestWriteAccess(filename);
     if (requestWriteLock != StatusCode::OK)
     {
@@ -181,8 +194,21 @@ grpc::StatusCode DFSClientNodeP2::Store(const std::string &filename) {
 
 }
 
-
 grpc::StatusCode DFSClientNodeP2::Fetch(const std::string &filename) {
+
+    std::string fileToFetch(WrapPath(filename));
+    std::ifstream input(fileToFetch, std::ios::binary);
+    if (!input.fail())
+    {                
+        uint32_t server_crc = GetFileChecksum(filename);
+        uint32_t client_crc = dfs_file_checksum(fileToFetch, &this->crc_table);
+        if (server_crc == client_crc)
+        {
+            dfs_log(LL_SYSINFO) << "client cache is same with server, won't fetch " << filename;
+            return StatusCode::ALREADY_EXISTS;
+        }
+    }
+
     dfs_log(LL_SYSINFO) << "begin fetch " << filename;
     ClientContext context;
    //context.set_deadline(std::chrono::system_clock::now() + std::chrono::milliseconds(deadline_timeout));
@@ -361,7 +387,6 @@ void DFSClientNodeP2::Sync() {
                 {
                     dfs_log(LL_SYSINFO) << "checksum same for file " << dp->d_name;
                 }
-                
             }
             else if (server_mtime < fileStat.st_mtime)
             {
