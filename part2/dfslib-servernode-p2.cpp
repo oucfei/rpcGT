@@ -244,12 +244,15 @@ Status ListAllFiles(ServerContext* context, const ListFilesRequest* request,
 
     dfs_log(LL_SYSINFO) << "DFSServerNode received Store request filename: " << filename << ", id: " << clientid;
 
+    mtx.lock();
     if (lockMap.find(filename) != lockMap.end() && lockMap[filename] != clientid)
     {
         dfs_log(LL_SYSINFO) << "cannot store: doesn't hold lock.";
-        return Status(StatusCode::RESOURCE_EXHAUSTED, "cannot store: doesn't hold lock.");
+        lockMap[filename] = clientid;
+        //return Status(StatusCode::RESOURCE_EXHAUSTED, "cannot store: doesn't hold lock.");
     }
 
+    mtx.unlock();
     dfs_log(LL_SYSINFO) << "holding lock. begin to store.";
     std::string filePath = WrapPath(filename);
     ofstream outfile(filePath, ofstream::binary);
